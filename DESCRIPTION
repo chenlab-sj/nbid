@@ -1,0 +1,21 @@
+Package: NBID
+Type: Package
+Title: Differential expression analysis using negative binomial with independent 
+    dispersions (NBID)
+Version: 0.1.1
+Author: Wenan Chen, Yan Li
+Maintainer: The package maintainer <wenan.chen@stjude.org>
+Description: This package provides functions for modeling 
+    UMI based single cell RNA-Seq (scRNA-seq) data. It includes functions for 
+    model fitting and goodness of fit tests with different distributions. 
+    It also provides a function for differential expression analysis between 
+    groups using negative binomial with independent dispersion parameters for 
+    each group.
+License: GPLv3
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 6.1.0
+Imports: MASS, pscl, AER, nloptr, edgeR, fitdistrplus, osDesign
+Suggests: knitr,
+    rmarkdown
+VignetteBuilder: knitr

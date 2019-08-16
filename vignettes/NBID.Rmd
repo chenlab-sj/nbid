@@ -1,0 +1,138 @@
+---
+title: "Model comparison, goodness of fit for single cell RNAS-Seq data and differential expression analysis"
+author: "Wenan Chen"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+#output: rmarkdown::pdf_document
+vignette: >
+  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+This package provides functions to fit different distributions to each gene for 
+UMI based single cell RNA-seq data. We can either use a hypothesis testing scheme
+to compare different models, or use a goodness of fit test to check how each 
+model fits the data. The test result can be useful to get a general idea on the
+heterogeneity of the scRNA-seq data. It also provides a method to do differential
+expression analysis which allows independent dispersions for each 
+condition/group. This tutorial shows the usage of these functions. Parallel 
+running using mutltiple cores is also supported.
+
+## Load the data
+We load a small data for quick analysis. It has two components. The first is 
+the gene*cell count matrix with gene names as the row names and cell names 
+as the column names, the second is the group label of each cell.
+
+```{r}
+library(NBID)
+data("smallData")
+print(str(smallData))
+```
+
+## Model comparsion for each gene
+There are two groups in the data. We check the gene distribution for group 1 
+in the following analysis. 
+
+First extract the cells and group ID from group 1
+
+```{r}
+index1 = (smallData$groupLabel == 1)
+data1 = smallData$count[, index1]
+group1 = smallData$groupLabel[index1]
+```
+
+Check the distribution of each genes by fitting different models. 
+This part is time consuming due to many different tries to fit the NB and ZINB
+models, e.g., it can take hours to finish for a full list of genes. 
+To save time, we only check the first 50 genes in this data set.
+
+```{r, eval = T}
+fitResult = checkDataDistribution(data1[1:50, ], group1)
+```
+
+We can summarize the model comparison results using the function 
+summaryComparison. It tests NB vs. ZINB and for those not rejected, it tests
+Poisson vs. NB. FDR < 0.05 is used for rejecting the simpler null model. It also
+output the model comparison results based on AIC, which might show increased 
+number of more complex models without adjusting multiple testing.
+
+```{r, eval = T}
+summaryResult = summaryComparison(fitResult)
+print(summaryResult$modelCount)
+```
+
+To use multiple cores, simply set the ncore parameter.
+
+```{r, eval = T}
+fitResult = checkDataDistribution(data1[1:50, ], group1, ncore = 4)
+```
+
+## Goodness of fit for all genes in a data set
+
+```{r}
+goodnessResult = goodnessOfFitOnData(data1, dist = c("poisson", "nb"))
+head(goodnessResult)
+```
+Number of genes tested for NB:
+```{r}
+print(sum(!is.na(goodnessResult$FDR_nb), na.rm = T))
+```
+
+Number of genes rejecting NB:
+```{r}
+print(sum(goodnessResult$FDR_nb < 0.05, na.rm = T))
+```
+
+Number of genes tested for Poisson
+```{r}
+print(sum(!is.na(goodnessResult$FDR_poisson), na.rm = T))
+```
+Number of genes rejecting Poisson:
+```{r}
+print(sum(goodnessResult$FDR_poisson < 0.05, na.rm = T))
+```
+
+We can also do a goodness of fit for a specific gene and plot the result. First
+we downsample them to the same total UMI per cell and then do the fit.
+
+```{r, fig.width=7, fig.height=4}
+set.seed(1234)
+downsampled = downsampleData(data1, groupLabel = rep(1, dim(data1)[2]))
+countMatrix = downsampled[[1]]
+gofOfAGene = goodnessOfFit(countMatrix[1, ], distribution = "nb", plot = T)
+```
+
+
+## Differential expression analysis
+Function DEUsingNBID does this job. The minimum input is the gene*cell 
+count matrix with gene names as the row names and cell names as the column 
+names, and a vector indicating the group information. It can also accept 
+a matrix or a data frame of covariates. Here is an simple example:
+
+```{r}
+result = DEUsingNBID(smallData$count, smallData$groupLabel)
+```
+
+Calculate the FDR based on p-values
+```{r}
+FDR = p.adjust(result[, "pvalue"], method = "BH")
+head(cbind(FDR, result))
+```
+
+Because the current test is based on the likelihood ratio test, when the total 
+counts of a gene for all groups are all small, e.g., less than 50, the p-value calculated might not be accurate. This happens when the gene expression level 
+is very low and the fold change is small or moderate. Therefore filtering 
+based on the gene expression level might be helpful. 
+
+In the default setting, the function DEUsingNBID uses the total UMI counts per 
+cell, or library size, for normalization. It can also accept a normalization 
+size factor. One recommended size factor is that calculated by the method scran, 
+even though most of the time the DE results are similar.
