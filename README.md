@@ -9,7 +9,7 @@ This package provides functions for modeling UMI based single cell RNA-seq data 
 * Summary of set up
 ```R
 library(devtools)
-install_github("chenlab-sj/NBID", ref="default", build_vignettes = T)
+install_github("chenlab-sj/nbid", build_vignettes = T)
 ```
 * use the package
 ```R
